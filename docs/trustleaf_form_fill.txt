@@ -85,7 +85,7 @@ Studio URL  : (paste after deploying in studio.genlayer.com)
 Explorer URL: (paste testnet explorer tx/deployment link)
 
 ## STEP 8 — PROJECT LINKS (required)
-Website : https://github.com/Azet17/trustleaf
+Website : https://github.com/Azet17/trustleaf  (atau GitHub Pages
           setelah deploy frontend: https://azet17.github.io/trustleaf/)
 GitHub  : https://github.com/Azet17/trustleaf
 
