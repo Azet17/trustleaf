@@ -18,45 +18,35 @@ on-chain trust scores consumable by procurement DAOs and
 autonomous agents (x402 / ERC-8004 agentic commerce).
 """
 from genlayer import *
+import json
 
 
 class SupplierTrustScore(gl.Contract):
-    # ---- state ----
-    # supplier_id -> {name, website, country, score, rationale, status}
-    supplier_counter: int
-    suppliers: dict[str, str]          # id -> JSON record
-    sanctions_checked: dict[str, str]  # id -> "clear" | "listed" | source url
-    appeals: dict[str, str]            # appeal_id -> JSON record
-    appeal_counter: int
+    supplier_counter: bigint
+    suppliers: TreeMap[str, str]
+    appeals: TreeMap[str, str]
+    appeal_counter: bigint
 
     def __init__(self):
         self.supplier_counter = 0
         self.appeal_counter = 0
-        self.suppliers = {}
-        self.sanctions_checked = {}
-        self.appeals = {}
+        self.suppliers = TreeMap[str, str]()
+        self.appeals = TreeMap[str, str]()
 
-    # ---------- internal: score one supplier from live web ----------
-    def _compute_evidence(self, website: str, name: str, country: str) -> str:
-        """Non-deterministic block: render the supplier website live and
-        extract trust signals. Returns JSON string. Validators reach
-        equivalence on the *judgment*, not the raw HTML."""
+    @gl.public.write
+    def register_supplier(self, name: str, website: str, country: str) -> int:
+        """Register a supplier. Live web evidence + OFAC screen,
+        adjudicated by validators."""
+        sid = self.supplier_counter + 1
+        self.supplier_counter = sid
 
-        def fetch_website() -> str:
-            web_data = gl.nondet.web.render(website, mode='text')
-            return web_data[:8000]
+        def fetch_and_judge() -> str:
+            site = gl.nondet.web.render(website, mode='text')[:8000]
 
-        def fetch_sanctions() -> str:
-            # OFAC consolidated list search (authoritative source)
-            url = f"https://sanctionssearch.ofac.treas.gov/Details.aspx?name={name}"
-            web_data = gl.nondet.web.render(url, mode='text')
-            return web_data[:4000]
+            # OFAC sanctions screening (authoritative)
+            sanctions_url = f"https://sanctionssearch.ofac.treas.gov/?name={name}"
+            sanctions = gl.nondet.web.render(sanctions_url, mode='text')[:4000]
 
-        def judge_trust() -> str:
-            site = fetch_website()
-            sanctions = fetch_sanctions()
-
-            # Trust signals a steward-buyer would check manually:
             signals = {
                 'site_reachable': len(site) > 200,
                 'has_contact_info': any(k in site.lower() for k in
@@ -69,12 +59,8 @@ class SupplierTrustScore(gl.Contract):
                                                 'factory', 'supply', 'manufactur']),
                 'sanctions_hit': ('match' in sanctions.lower()
                                   and 'no results' not in sanctions.lower()),
-                'site': website,
-                'name': name,
-                'country': country,
             }
 
-            # Subjective score 0-100 — validators judge equivalence
             score = 0
             if signals['site_reachable']:
                 score += 20
@@ -85,41 +71,29 @@ class SupplierTrustScore(gl.Contract):
             if signals['product_service_clarity']:
                 score += 25
             if signals['sanctions_hit']:
-                score = 0  # automatic zero if sanctioned
+                score = 0
 
             rationale = (
-                f"Supplier '{name}' ({country}): site {'reachable' if signals['site_reachable'] else 'UNREACHABLE'}; "
+                f"Supplier '{name}' ({country}): site "
+                f"{'reachable' if signals['site_reachable'] else 'UNREACHABLE'}; "
                 f"contact info {'present' if signals['has_contact_info'] else 'MISSING'}; "
-                f"business identity signals {'present' if signals['has_business_identity'] else 'MISSING'}; "
+                f"business identity {'present' if signals['has_business_identity'] else 'MISSING'}; "
                 f"product/service clarity {'OK' if signals['product_service_clarity'] else 'WEAK'}; "
-                f"sanctions screen: {'HIT — REJECTED' if signals['sanctions_hit'] else 'clear'}. "
+                f"sanctions screen: {'HIT - REJECTED' if signals['sanctions_hit'] else 'clear'}. "
                 f"Computed trust score: {score}/100."
             )
-            import json
-            return json.dumps({'score': score, 'signals': signals,
-                               'rationale': rationale})
+            return json.dumps({'id': sid, 'name': name, 'website': website,
+                               'country': country, 'score': score,
+                               'signals': signals, 'rationale': rationale})
 
-        # Validators independently fetch + judge; equivalence principle
-        # reconciles their answers (strict equality on final JSON).
-        return gl.eq_principle.strict_eq(judge_trust)
-
-    # ---------- public API ----------
-    @gl.public.write
-    def register_supplier(self, name: str, website: str, country: str) -> int:
-        """Register a supplier. Anyone may register; score is computed
-        immediately from live evidence."""
-        sid = self.supplier_counter + 1
-        self.supplier_counter = sid
-
-        record = gl.eq_principle.strict_eq(
-            self._compute_evidence(website, name, country))
+        record = gl.eq_principle.strict_eq(fetch_and_judge)
         self.suppliers[str(sid)] = record
         return sid
 
     @gl.public.view
     def get_score(self, supplier_id: int) -> str:
         """Full JSON record: score, signals, rationale."""
-        return self.suppliers.get(str(supplier_id), '{"error": "not found"}')
+        return self.suppliers[str(supplier_id)]
 
     @gl.public.view
     def total_suppliers(self) -> int:
@@ -127,19 +101,14 @@ class SupplierTrustScore(gl.Contract):
 
     @gl.public.write
     def appeal_score(self, supplier_id: int, evidence_url: str) -> int:
-        """Supplier disputes their score with new evidence URL.
-        Triggers fresh live evaluation including the evidence."""
-        base = self.suppliers.get(str(supplier_id))
-        if not base:
-            raise ValueError('supplier not found')
-
+        """Supplier disputes score with new evidence URL -> fresh evaluation."""
+        base = self.suppliers[str(supplier_id)]
         aid = self.appeal_counter + 1
         self.appeal_counter = aid
+        base_rec = json.loads(base)
 
         def judge_appeal() -> str:
             site = gl.nondet.web.render(evidence_url, mode='text')[:6000]
-            import json
-            base_rec = json.loads(base)
             old_score = base_rec.get('score', 0)
             strong = any(k in site.lower() for k in
                          ['certificate', 'license', 'registration',
@@ -156,22 +125,18 @@ class SupplierTrustScore(gl.Contract):
 
         result = gl.eq_principle.strict_eq(judge_appeal)
         self.appeals[str(aid)] = result
-        # update supplier with re-scored record if appeal accepted
-        import json as _json
-        res = _json.loads(result)
+        res = json.loads(result)
         if res['new_score'] > res['old_score']:
-            base_rec = _json.loads(base)
             base_rec['score'] = res['new_score']
             base_rec['rationale'] = res['rationale']
-            self.suppliers[str(supplier_id)] = _json.dumps(base_rec)
+            self.suppliers[str(supplier_id)] = json.dumps(base_rec)
         return aid
 
     @gl.public.view
     def get_appeal(self, appeal_id: int) -> str:
-        return self.appeals.get(str(appeal_id), '{"error": "not found"}')
+        return self.appeals[str(appeal_id)]
 
     @gl.public.view
     def is_sanctioned(self, supplier_id: int) -> bool:
-        import json
-        rec = json.loads(self.suppliers.get(str(supplier_id), '{}'))
+        rec = json.loads(self.suppliers[str(supplier_id)])
         return bool(rec.get('signals', {}).get('sanctions_hit', False))
