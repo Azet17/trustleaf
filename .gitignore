@@ -7,3 +7,4 @@ make_video.py
 finalize.sh
 purge.sh
 cleanup.sh
+final_purge.sh
