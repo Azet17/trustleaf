@@ -1,43 +1,43 @@
-# TrustLeaf — Deployment & Review Guide (for stewards)
+# TrustLeaf — Deployment Guide (v2 — Testnet Bradbury)
 
-## 1. Deploy the Intelligent Contract (5 minutes)
+## Contract (already deployed — reuse or redeploy)
 
-**Via GenLayer Simulator:**
+**Contract address (Studio testnet deploy):**
+`0x6ce3f249368ce5B28E9906ffA3a3Be1eF1b08b32`
+**Deploy tx:** `0x114ce1ad298639d5eb9621dd9294994d594d73b22551c37cefbe02ad6ddf2617` (ACCEPTED)
+
+### Redeploy to Testnet Bradbury via genlayer CLI (real network):
+
 ```bash
-# Install simulator per official docs:
-# https://docs.genlayer.com/developers/building-on-genlayer/setting-up/genlayer-simulator
-docker run -d -p 8484:8484 --name genlayer-simulator ghcr.io/yeagerai/genlayer-simulator:latest
-# Open http://localhost:8484 → Studio → New Project
-# Paste contracts/supplier_trust.py → Deploy
-# Note the contract address
+npm install -g @genlayer/cli   # or: uv tool install genlayer
+genlayer network set testnetBradbury
+genlayer deploy --contract contracts/supplier_trust.py
+# → returns REAL testnet contract address; put it in frontend/.env
 ```
 
-**Via Testnet Bradbury:** use GenLayer Studio (studio.genlayer.com) → new project → paste contract → deploy → copy address.
-
-## 2. Run the Frontend
+## Frontend (v2 — real network via genlayer-js)
 
 ```bash
 cd frontend
 npm create vite@latest . -- --template react
 npm install genlayer-js
-echo "VITE_TRUSTLEAF_ADDRESS=<your_contract_address>" > .env
-# Replace src/App.jsx with this repo's App.jsx
+echo "VITE_TRUSTLEAF_ADDRESS=0x<your-testnet-address>" > .env
+# replace src/App.jsx with this repo's App.jsx
 npm run dev
-# Open http://localhost:5173
 ```
 
-## 3. What the steward will see (verification script)
+**What changed in v2 (steward feedback addressed):**
+- ❌ OLD: `SimulatorTransport` (local simulator only)
+- ✅ NEW: `createClient({ chain: testnetBradbury })` — REAL GenLayer network
+- ✅ readClient (RPC direct) + writeClient (MetaMask-signed) per official SDK pattern
+- ✅ `waitForTransactionReceipt({ status: TransactionStatus.ACCEPTED })` — real consensus wait
+- ✅ `client.connect('testnetBradbury')` — wallet auto-switches network
 
-1. **Connect Wallet** — MetaMask popup, address shown
-2. **Register Supplier** with `name=Acme GmbH, website=https://acme-real-site.com, country=Germany`
-   - Button shows *"Validators adjudicating live evidence…"* (tx lifecycle: pending → validated → finalized)
-   - tx hash displayed with explorer link
-3. **Fetch on-chain score** → 0–100 score + human-readable rationale rendered FROM CONTRACT STATE (not mock)
-4. Register a supplier with a sanctions-list name → score auto-zero with "OFAC SANCTIONS HIT" banner
-5. **Appeal** with a certificate URL → score adjusted live, both old/new scores + rationale shown
+## Steward verification script
 
-Every UI state comes from a real contract call — no hardcoded data.
-
-## 4. Contract deployment links
-
-Deploy once on Testnet Bradbury and paste the explorer URL into the submission form (Studio / explorer URLs are accepted by the portal).
+1. Open the deployed frontend URL
+2. Banner shows: **"● GenLayer Testnet Bradbury — real network"**
+3. "Suppliers scored on-chain: N" — live read from the real testnet
+4. Connect MetaMask → auto-switches to GenLayer Bradbury network
+5. Register a supplier → tx hash → wait ACCEPTED on real network
+6. `get_score` returns on-chain JSON with rationale
