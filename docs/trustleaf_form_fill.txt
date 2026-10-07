@@ -57,8 +57,10 @@ TODO: record 3-5 min demo:
 (Upload unlisted → paste URL)
 
 ## STEP 5 — WRITE THE EXACT PATH (how to reproduce)
-1. Open GenLayer Studio (studio.genlayer.com) or local Simulator
-   (docker run -d -p 8484:8484 ghcr.io/yeagerai/genlayer-simulator:latest)
+1. Deploy via genlayer CLI to Testnet Bradbury (REAL network):
+   genlayer network set testnetBradbury
+   genlayer deploy --contract contracts/supplier_trust.py
+   (or via studio.genlayer.com → paste contracts/supplier_trust.py → Deploy)
 2. New project → paste contracts/supplier_trust.py from repo
 3. Deploy → note contract address
 4. Call register_supplier("Acme Industrial",
