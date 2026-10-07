@@ -6,3 +6,4 @@ cdp_driver.py
 make_video.py
 finalize.sh
 purge.sh
+cleanup.sh
