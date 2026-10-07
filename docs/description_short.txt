@@ -1,0 +1,5 @@
+TrustLeaf solves a trust problem deterministic smart contracts cannot touch: B2B vendor reputation is controlled by centralized platforms that can be manipulated or left stale, so buyers have no independent way to verify a supplier before wiring funds.
+
+TrustLeaf registers suppliers on-chain and scores them 0-100 by fetching LIVE evidence during execution: the supplier's website is rendered in real time (gl.nondet.web.render) and screened against OFAC sanction lists. Trust signals are judged by GenLayer's AI validator jury via the Equivalence Principle; score plus human-readable rationale is stored on-chain. Suppliers can appeal with new evidence, triggering fresh live re-evaluation.
+
+Impossible on Ethereum: live web access, subjective evidence judgment, and natural-language rationale all require GenLayer's adjudication layer. TrustLeaf combines sanction screening, web evidence, and an appeal loop into a reusable trust primitive for agentic commerce (x402/ERC-8004).
