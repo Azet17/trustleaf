@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+deploy_*.py
+DEPLOY_NOW.py
+cdp_driver.py
+make_video.py

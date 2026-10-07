@@ -1,43 +1,59 @@
-# TrustLeaf — Deployment Guide (v2 — Testnet Bradbury)
+# Deploy TrustLeaf — Testnet Bradbury (Real Network)
 
-## Contract (already deployed — reuse or redeploy)
+## 1. Deploy the Contract
 
-**Contract address (Studio testnet deploy):**
-`0x6ce3f249368ce5B28E9906ffA3a3Be1eF1b08b32`
-**Deploy tx:** `0x114ce1ad298639d5eb9621dd9294994d594d73b22551c37cefbe02ad6ddf2617` (ACCEPTED)
-
-### Redeploy to Testnet Bradbury via genlayer CLI (real network):
-
+**Option A — genlayer CLI (real testnet):**
 ```bash
 npm install -g @genlayer/cli   # or: uv tool install genlayer
 genlayer network set testnetBradbury
+genlayer network info           # verify network
 genlayer deploy --contract contracts/supplier_trust.py
-# → returns REAL testnet contract address; put it in frontend/.env
+# → returns testnet contract address; put it in frontend/.env as VITE_TRUSTLEAF_ADDRESS
 ```
 
-## Frontend (v2 — real network via genlayer-js)
+**Option B — GenLayer Studio:** open studio.genlayer.com → new project → paste `contracts/supplier_trust.py` → Deploy (studio uses studionet; for Bradbury use the CLI).
+
+**Reference deployment (Studio testnet):** `0x6ce3f249368ce5B28E9906ffA3a3Be1eF1b08b32` — tx `0x114ce1ad298639d5eb9621dd9294994d594d73b22551c37cefbe02ad6ddf2617` ACCEPTED.
+
+## 2. Run the Frontend (Testnet Bradbury — real network)
 
 ```bash
 cd frontend
 npm create vite@latest . -- --template react
 npm install genlayer-js
-echo "VITE_TRUSTLEAF_ADDRESS=0x<your-testnet-address>" > .env
+echo "VITE_TRUSTLEAF_ADDRESS=0x<testnet-address>" > .env
 # replace src/App.jsx with this repo's App.jsx
 npm run dev
 ```
 
-**What changed in v2 (steward feedback addressed):**
-- ❌ OLD: `SimulatorTransport` (local simulator only)
-- ✅ NEW: `createClient({ chain: testnetBradbury })` — REAL GenLayer network
-- ✅ readClient (RPC direct) + writeClient (MetaMask-signed) per official SDK pattern
-- ✅ `waitForTransactionReceipt({ status: TransactionStatus.ACCEPTED })` — real consensus wait
-- ✅ `client.connect('testnetBradbury')` — wallet auto-switches network
+**v2 network config (no simulator):**
+```typescript
+import { createClient } from 'genlayer-js';
+import { testnetBradbury } from 'genlayer-js/chains';
+import { TransactionStatus } from 'genlayer-js/types';
 
-## Steward verification script
+const readClient = createClient({ chain: testnetBradbury });       // direct RPC
+const writeClient = createClient({                                  // MetaMask-signed
+  chain: testnetBradbury,
+  account: address as `0x${string}`,
+  provider: window.ethereum,
+});
+await writeClient.connect('testnetBradbury');                       // auto network switch
+const receipt = await readClient.waitForTransactionReceipt({
+  hash: txHash, status: TransactionStatus.ACCEPTED,
+});
+```
 
-1. Open the deployed frontend URL
-2. Banner shows: **"● GenLayer Testnet Bradbury — real network"**
-3. "Suppliers scored on-chain: N" — live read from the real testnet
-4. Connect MetaMask → auto-switches to GenLayer Bradbury network
-5. Register a supplier → tx hash → wait ACCEPTED on real network
-6. `get_score` returns on-chain JSON with rationale
+## 3. Steward verification script
+
+1. Open the frontend → banner: **"● GenLayer Testnet Bradbury — real network"**
+2. "Suppliers scored on-chain: N" — live read from real testnet (no simulator)
+3. Connect MetaMask → wallet auto-switches to GenLayer Bradbury network
+4. Register supplier → tx hash → `waitForTransactionReceipt(status: ACCEPTED)` on real network
+5. `get_score` → on-chain JSON with rationale
+6. OFAC-sanctioned supplier → auto-zero
+7. Appeal → fresh live re-evaluation
+
+## Storage compliance (GenVM)
+
+`TreeMap[str, str]` collections + `bigint` counters only — no `dict`/`int` class attributes (unsupported by GenVM persistent storage).
