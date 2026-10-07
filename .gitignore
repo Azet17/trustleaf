@@ -4,3 +4,5 @@ deploy_*.py
 DEPLOY_NOW.py
 cdp_driver.py
 make_video.py
+finalize.sh
+purge.sh
